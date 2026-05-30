@@ -220,10 +220,11 @@ function generateRoute() {
   applyFilters();
   if (coords.length > 1) {
     state.map.fitBounds(L.latLngBounds(coords).pad(0.18));
-  } else {
+  } else if (coords.length === 1) {
     state.map.setView(coords[0], 16);
   }
-  if (isMobile) closeMobileSheet();
+  enterRoutingMode();
+  if (isMobile) openMobileTab('checklist');
 }
 
 function renderRoute() {
