@@ -678,5 +678,23 @@ window.addEventListener('DOMContentLoaded', () => {
   wireEvents();
   renderRoute();
   updateShareBtn();
+  // Load hardcoded event data immediately
+  if (typeof SALE_DATA !== 'undefined') {
+    const parsed = SALE_DATA.map(d => ({
+      name: d.address, address: d.address, lat: d.lat, lng: d.lng,
+      rawItems: d.items, categories: [],
+    }));
+    const validCats = buildCategoryIndex(parsed);
+    parsed.forEach(row => {
+      row.categories = [...new Set(row.rawItems.filter(i => validCats.has(i)))];
+      if (!row.categories.length) row.categories = ['Other'];
+      state.rows.push(row);
+      row.categories.forEach(cat => {
+        if (!state.categories[cat]) state.categories[cat] = { enabled: true, color: nextColor() };
+      });
+    });
+    renderCategoryFilters();
+    placeMarkers();
+  }
   checkHashAutoLoad();
 });
