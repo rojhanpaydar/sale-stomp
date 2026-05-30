@@ -39,6 +39,7 @@ const state = {
   mode: 'planning',
   checklist: [],
   mapHidden: false,
+  routeViewActive: false,
 };
 let stopIdCounter = 0;
 
@@ -163,10 +164,18 @@ function renderCategoryFilters() {
 }
 
 function applyFilters() {
+  const routeRows = new Set(state.route.filter(s => s.row).map(s => s.row));
   state.markers.forEach(({ row, marker }) => {
-    const show = row.categories.some(c => state.categories[c]?.enabled);
-    if (show && !state.map.hasLayer(marker)) marker.addTo(state.map);
-    else if (!show && state.map.hasLayer(marker)) marker.remove();
+    // In route-view mode, only show markers that are in the route
+    if (state.routeViewActive) {
+      const show = routeRows.has(row);
+      if (show && !state.map.hasLayer(marker)) marker.addTo(state.map);
+      else if (!show && state.map.hasLayer(marker)) marker.remove();
+    } else {
+      const show = row.categories.some(c => state.categories[c]?.enabled);
+      if (show && !state.map.hasLayer(marker)) marker.addTo(state.map);
+      else if (!show && state.map.hasLayer(marker)) marker.remove();
+    }
   });
   updateBadge();
 }
@@ -207,6 +216,8 @@ function updateStartRouteCta() {
 function generateRoute() {
   const coords = state.route.filter(s => s.latlng).map(s => s.latlng);
   if (!coords.length) { alert('Add at least one stop to generate a route.'); return; }
+  state.routeViewActive = true;
+  applyFilters();
   if (coords.length > 1) {
     state.map.fitBounds(L.latLngBounds(coords).pad(0.18));
   } else {
@@ -467,7 +478,9 @@ function wireEvents() {
   customInput.addEventListener('keydown', e => { if (e.key === 'Enter') document.getElementById('add-custom-stop').click(); });
 
   document.getElementById('clear-route').addEventListener('click', () => {
-    state.route = []; renderRoute(); drawRouteLine(); updateStartRouteCta();
+    state.route = [];
+    state.routeViewActive = false;
+    renderRoute(); drawRouteLine(); updateStartRouteCta(); applyFilters();
   });
   document.getElementById('fit-route').addEventListener('click', () => {
     const coords = state.route.filter(s => s.latlng).map(s => s.latlng);
