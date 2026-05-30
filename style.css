@@ -336,4 +336,10 @@ html, body { height: 100%; font-family: -apple-system, BlinkMacSystemFont, 'Sego
   #sidebar-logo { display: block; }
 }
 
+/* ===== Share section ===== */
+.share-desc { font-size: 12px; color: var(--text-muted); line-height: 1.5; margin-bottom: 10px; }
+.share-tip   { font-size: 12px; color: var(--text-muted); line-height: 1.5; margin-top: 8px; }
+#share-btn:disabled { opacity: 0.45; cursor: not-allowed; }
+#share-btn:disabled:hover { background: var(--accent); transform: none; }
+
 .hidden { display: none !important; }

@@ -20,6 +20,7 @@ const state = {
   mode: 'planning',
   checklist: [],     // { stop, visited, skipped }
   mapHidden: false,
+  csvUrl: null,      // set when loaded from a URL (enables sharing)
 };
 let stopIdCounter = 0;
 
@@ -458,15 +459,7 @@ function wireEvents() {
   dropZone.addEventListener('drop', e => { e.preventDefault(); dropZone.classList.remove('dragover'); if (e.dataTransfer.files[0]) readFile(e.dataTransfer.files[0]); });
   fileInput.addEventListener('change', () => { if (fileInput.files[0]) readFile(fileInput.files[0]); });
 
-  document.getElementById('csv-url-load').addEventListener('click', async () => {
-    const url = document.getElementById('csv-url-input').value.trim();
-    if (!url) return;
-    try {
-      const res = await fetch(url);
-      if (!res.ok) throw new Error(res.statusText);
-      loadCSV(await res.text(), url.split('/').pop() || url);
-    } catch (e) { alert(`Could not load CSV: ${e.message}`); }
-  });
+  document.getElementById('csv-url-load').addEventListener('click', () => loadFromUrl(document.getElementById('csv-url-input').value.trim()));
 
   // Filters
   document.getElementById('select-all-cats').addEventListener('click', () => {
@@ -507,6 +500,9 @@ function wireEvents() {
     }
   });
 
+  // Share
+  document.getElementById('share-btn').addEventListener('click', shareMap);
+
   // Checklist mode
   document.getElementById('start-route-btn').addEventListener('click', enterRoutingMode);
   document.getElementById('back-to-planning').addEventListener('click', exitRoutingMode);
@@ -518,9 +514,60 @@ function wireEvents() {
 }
 
 function readFile(file) {
+  state.csvUrl = null; // file upload — not shareable
+  updateShareBtn();
   const reader = new FileReader();
   reader.onload = e => loadCSV(e.target.result, file.name);
   reader.readAsText(file);
+}
+
+async function loadFromUrl(url) {
+  if (!url) return;
+  try {
+    const res = await fetch(url);
+    if (!res.ok) throw new Error(res.statusText);
+    state.csvUrl = url;
+    loadCSV(await res.text(), url.split('/').pop() || url);
+    updateShareBtn();
+  } catch (e) { alert(`Could not load CSV: ${e.message}`); }
+}
+
+// ── Share ──────────────────────────────────────────────
+function updateShareBtn() {
+  const btn = document.getElementById('share-btn');
+  const tip = document.getElementById('share-tip');
+  if (state.csvUrl) {
+    btn.disabled = false;
+    btn.title = '';
+    tip.classList.add('hidden');
+  } else {
+    btn.disabled = true;
+    btn.title = 'Load the CSV from a URL first to enable sharing';
+  }
+}
+
+function shareMap() {
+  const shareUrl = `${location.origin}${location.pathname}#csv=${encodeURIComponent(state.csvUrl)}`;
+  navigator.clipboard.writeText(shareUrl).then(() => {
+    const btn = document.getElementById('share-btn');
+    const orig = btn.textContent;
+    btn.textContent = '✓ Copied!';
+    setTimeout(() => { btn.textContent = orig; }, 2200);
+  }).catch(() => {
+    // fallback: show the URL in a prompt so they can copy manually
+    window.prompt('Copy this link to share your map:', shareUrl);
+  });
+}
+
+// ── Hash-based auto-load ───────────────────────────────
+function checkHashAutoLoad() {
+  const hash = location.hash.slice(1); // remove leading #
+  const params = new URLSearchParams(hash);
+  const csvUrl = params.get('csv');
+  if (csvUrl) {
+    document.getElementById('csv-url-input').value = csvUrl;
+    loadFromUrl(csvUrl);
+  }
 }
 
 // ── Boot ───────────────────────────────────────────────
@@ -528,4 +575,6 @@ window.addEventListener('DOMContentLoaded', () => {
   initMap();
   wireEvents();
   renderRoute();
+  updateShareBtn();
+  checkHashAutoLoad();
 });
