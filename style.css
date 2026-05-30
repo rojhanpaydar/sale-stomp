@@ -141,11 +141,27 @@ html, body { height: 100%; font-family: -apple-system, BlinkMacSystemFont, 'Sego
 .section-body { padding: 0 16px 16px; }
 .section-body.collapsed { display: none; }
 
-/* ===== Event info ===== */
-#event-info-section { padding: 14px 16px; background: var(--accent-light); border-bottom: 1px solid var(--border); }
-#event-info-body { display: flex; flex-direction: column; gap: 2px; }
-#event-title { font-size: 13px; font-weight: 800; color: var(--accent-hover); }
-#event-meta  { font-size: 11px; color: var(--text-muted); }
+/* ===== CSV Upload ===== */
+#csv-drop-zone {
+  border: 2px dashed var(--border); border-radius: var(--radius);
+  padding: 18px 12px; text-align: center; cursor: pointer;
+  transition: border-color 0.2s, background 0.2s; background: var(--surface-2);
+}
+#csv-drop-zone:hover, #csv-drop-zone.dragover { border-color: var(--accent); background: var(--accent-light); }
+#csv-drop-zone p { color: var(--text-muted); font-size: 13px; line-height: 1.5; }
+#csv-drop-zone strong { color: var(--text); }
+.csv-or { margin: 10px 0; color: var(--text-muted); font-size: 12px; text-align: center; }
+#url-row { display: flex; gap: 6px; }
+#csv-url-input { flex: 1; padding: 7px 10px; border: 1px solid var(--border); border-radius: var(--radius); font-size: 13px; outline: none; }
+#csv-url-input:focus { border-color: var(--accent); }
+#loaded-info { margin-top: 10px; padding: 8px 10px; background: var(--accent-light); border-radius: var(--radius); font-size: 12px; color: var(--accent-hover); display: none; }
+#loaded-info.visible { display: block; }
+
+/* ===== Share section ===== */
+.share-desc { font-size: 12px; color: var(--text-muted); line-height: 1.5; margin-bottom: 10px; }
+.share-tip   { font-size: 12px; color: var(--text-muted); line-height: 1.5; margin-top: 8px; }
+#share-btn:disabled { opacity: 0.45; cursor: not-allowed; }
+#share-btn:disabled:hover { background: var(--accent); transform: none; }
 
 /* ===== Filters ===== */
 #filter-controls { display: flex; gap: 6px; margin-bottom: 10px; }

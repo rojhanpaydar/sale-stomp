@@ -3,11 +3,11 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Sale Stomp — Giant Junction Jumble Sale 2026</title>
+  <title>Sale Stomp — Interactive Route Planner</title>
   <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
   <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+  <script src="https://unpkg.com/papaparse@5.4.1/papaparse.min.js"></script>
   <script src="https://unpkg.com/sortablejs@1.15.2/Sortable.min.js"></script>
-  <script src="data.js"></script>
   <link rel="stylesheet" href="style.css" />
 </head>
 <body>
@@ -31,11 +31,23 @@
         <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-3px;margin-right:6px"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"/><circle cx="12" cy="10" r="3"/></svg>Sale Stomp
       </div>
 
-      <!-- Event info -->
-      <div class="sidebar-section" id="event-info-section">
-        <div id="event-info-body">
-          <div id="event-title"></div>
-          <div id="event-meta"></div>
+      <!-- CSV Upload -->
+      <div class="sidebar-section">
+        <button class="section-header collapsed" data-target="csv-body">
+          <span class="section-title">Load Sale Data</span>
+          <span class="collapse-arrow">▾</span>
+        </button>
+        <div class="section-body collapsed" id="csv-body">
+          <div id="csv-drop-zone" role="button" tabindex="0">
+            <p><strong>Drop a CSV file here</strong><br>or click to upload</p>
+          </div>
+          <input type="file" id="csv-file-input" accept=".csv" style="display:none" />
+          <div class="csv-or">— or load from URL —</div>
+          <div id="url-row">
+            <input type="text" id="csv-url-input" placeholder="https://example.com/sales.csv" />
+            <button class="btn btn-primary btn-small" id="csv-url-load">Load</button>
+          </div>
+          <div id="loaded-info"></div>
         </div>
       </div>
 
@@ -51,7 +63,7 @@
             <button class="btn btn-secondary btn-small" id="clear-all-cats">Clear All</button>
           </div>
           <div id="category-list">
-            <span class="empty-hint">Loading…</span>
+            <span class="empty-hint">Load a CSV to see categories</span>
           </div>
         </div>
       </div>
@@ -82,7 +94,7 @@
           </div>
 
           <div id="route-list"></div>
-          <div id="route-empty" class="visible">No stops yet — click a pin on the map to add it.</div>
+          <div id="route-empty" class="visible">No stops yet — add a start point or click a pin on the map.</div>
           <div id="route-actions">
             <button class="btn btn-secondary btn-small" id="clear-route">Clear</button>
             <button class="btn btn-secondary btn-small" id="fit-route">Fit Map</button>
@@ -93,6 +105,21 @@
               Generate Route
             </button>
           </div>
+        </div>
+      </div>
+
+      <!-- Share -->
+      <div class="sidebar-section" id="share-section">
+        <button class="section-header" data-target="share-body">
+          <span class="section-title">Share This Map</span>
+          <span class="collapse-arrow">▾</span>
+        </button>
+        <div class="section-body" id="share-body">
+          <p class="share-desc">Generate a link that opens this map with all pins pre-loaded. Recipients can build their own route independently.</p>
+          <button class="btn btn-primary btn-full" id="share-btn" disabled>
+            <svg xmlns="http://www.w3.org/2000/svg" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-2px;margin-right:6px"><circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/><line x1="8.59" y1="13.51" x2="15.42" y2="17.49"/><line x1="15.41" y1="6.51" x2="8.59" y2="10.49"/></svg>Copy Share Link
+          </button>
+          <p class="share-tip" id="share-tip">Load the CSV from a <strong>URL</strong> above to enable sharing. File uploads can't be linked to.</p>
         </div>
       </div>
 
@@ -150,6 +177,12 @@
         <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 5H7a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V7a2 2 0 0 0-2-2h-2"/><rect x="9" y="3" width="6" height="4" rx="1"/><path d="M9 12h6M9 16h4"/></svg>
       </span>
       <span class="tab-label">Checklist</span>
+    </button>
+    <button class="tab-btn" data-tab="share">
+      <span class="tab-icon">
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/><line x1="8.59" y1="13.51" x2="15.42" y2="17.49"/><line x1="15.41" y1="6.51" x2="8.59" y2="10.49"/></svg>
+      </span>
+      <span class="tab-label">Share</span>
     </button>
   </nav>
 

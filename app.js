@@ -40,6 +40,7 @@ const state = {
   checklist: [],
   mapHidden: false,
   routeViewActive: false,
+  csvUrl: null,
 };
 let stopIdCounter = 0;
 
@@ -67,6 +68,8 @@ function makePinIcon(color) {
     popupAnchor: [0, -40],
   });
 }
+
+function sleep(ms) { return new Promise(r => setTimeout(r, ms)); }
 
 function placeMarkers() {
   state.rows.forEach(row => {
@@ -108,19 +111,22 @@ function buildPopup(row, marker) {
   return el;
 }
 
-// ── Load hardcoded data ────────────────────────────────
-function loadHardcodedData() {
+// ── CSV loading ────────────────────────────────────────
+function loadCSV(csvText, sourceName) {
+  const result = Papa.parse(csvText.trim(), {
+    header: true,
+    skipEmptyLines: true,
+    transformHeader: h => h.trim().toLowerCase().replace(/[\s\n\r]+/g, '_'),
+  });
+  if (!result.data.length) { alert('Could not parse CSV. Check the file format.'); return; }
+
+  state.markers.forEach(({ marker }) => marker.remove());
+  state.markers = [];
+  state.rows = [];
+  state.categories = {};
   paletteIndex = 0;
 
-  // Map SALE_DATA into rows with rawItems
-  const parsed = SALE_DATA.map(d => ({
-    address: d.address,
-    lat: d.lat,
-    lng: d.lng,
-    rawItems: d.items,
-    categories: [],
-  }));
-
+  const parsed = result.data.map(normaliseRow).filter(Boolean);
   const validCats = buildCategoryIndex(parsed);
 
   parsed.forEach(row => {
@@ -132,14 +138,96 @@ function loadHardcodedData() {
     });
   });
 
-  // Populate event info
-  const titleEl = document.getElementById('event-title');
-  const metaEl  = document.getElementById('event-meta');
-  if (titleEl) titleEl.textContent = SALE_EVENT.name;
-  if (metaEl)  metaEl.textContent  = `${SALE_EVENT.date} · ${SALE_EVENT.location}`;
-
   renderCategoryFilters();
   placeMarkers();
+
+  const info = document.getElementById('loaded-info');
+  info.textContent = `✓ Loaded ${state.rows.length} locations from ${sourceName}`;
+  info.classList.add('visible');
+}
+
+function normaliseRow(raw) {
+  const keys = Object.keys(raw);
+  const fuzzyGet = (...terms) => {
+    for (const term of terms) {
+      if (raw[term] !== undefined && String(raw[term]).trim()) return String(raw[term]).trim();
+      const found = keys.find(k => k.includes(term.toLowerCase()));
+      if (found && raw[found] !== undefined && String(raw[found]).trim()) return String(raw[found]).trim();
+    }
+    return '';
+  };
+  const name    = fuzzyGet('name', 'title', 'seller', 'location_name');
+  const address = fuzzyGet('address', 'location', 'street', 'addr');
+  const latStr  = fuzzyGet('lat', 'latitude');
+  const lngStr  = fuzzyGet('lng', 'lon', 'longitude');
+  const catRaw  = fuzzyGet('categories', 'category', 'items', 'tags', 'selling', 'type');
+  if (!address && !name) return null;
+  const lat = parseFloat(latStr);
+  const lng = parseFloat(lngStr);
+  const rawItems = catRaw ? catRaw.split(/[|,;]/).map(c => c.trim()).filter(Boolean) : [];
+  return { name: name || address, address: address || name, lat: isNaN(lat) ? null : lat, lng: isNaN(lng) ? null : lng, rawItems, categories: [] };
+}
+
+async function placeMarkersWithGeocode() {
+  const toGeocode = state.rows.filter(r => r.lat === null);
+  for (let i = 0; i < toGeocode.length; i++) {
+    try {
+      const coords = await geocode(toGeocode[i].address);
+      if (coords) { toGeocode[i].lat = coords[0]; toGeocode[i].lng = coords[1]; }
+    } catch (_) {}
+    if (i < toGeocode.length - 1) await sleep(1100);
+  }
+  placeMarkers();
+}
+
+function readFile(file) {
+  state.csvUrl = null;
+  updateShareBtn();
+  const reader = new FileReader();
+  reader.onload = e => loadCSV(e.target.result, file.name);
+  reader.readAsText(file);
+}
+
+async function loadFromUrl(url) {
+  if (!url) return;
+  try {
+    const res = await fetch(url);
+    if (!res.ok) throw new Error(res.statusText);
+    state.csvUrl = url;
+    loadCSV(await res.text(), url.split('/').pop() || url);
+    updateShareBtn();
+  } catch (e) { alert(`Could not load CSV: ${e.message}`); }
+}
+
+function updateShareBtn() {
+  const btn = document.getElementById('share-btn');
+  const tip = document.getElementById('share-tip');
+  if (state.csvUrl) {
+    btn.disabled = false;
+    tip.classList.add('hidden');
+  } else {
+    btn.disabled = true;
+    tip?.classList.remove('hidden');
+  }
+}
+
+function shareMap() {
+  const shareUrl = `${location.origin}${location.pathname}#csv=${encodeURIComponent(state.csvUrl)}`;
+  navigator.clipboard.writeText(shareUrl).then(() => {
+    const btn = document.getElementById('share-btn');
+    const orig = btn.innerHTML;
+    btn.textContent = '✓ Copied!';
+    setTimeout(() => { btn.innerHTML = orig; }, 2200);
+  }).catch(() => { window.prompt('Copy this link to share your map:', shareUrl); });
+}
+
+function checkHashAutoLoad() {
+  const params = new URLSearchParams(location.hash.slice(1));
+  const csvUrl = params.get('csv');
+  if (csvUrl) {
+    document.getElementById('csv-url-input').value = csvUrl;
+    loadFromUrl(csvUrl);
+  }
 }
 
 // ── Filters ────────────────────────────────────────────
@@ -224,7 +312,13 @@ function generateRoute() {
     state.map.setView(coords[0], 16);
   }
   enterRoutingMode();
-  if (isMobile) openMobileTab('checklist');
+  if (isMobile) {
+    // Force sidebar open on checklist tab without the toggle-close risk of openMobileTab
+    activeTab = 'checklist';
+    document.querySelectorAll('.tab-btn').forEach(b => b.classList.toggle('active', b.dataset.tab === 'checklist'));
+    document.getElementById('sidebar').classList.add('open');
+    setTimeout(() => { document.getElementById('sidebar').scrollTop = 0; }, 50);
+  }
 }
 
 function renderRoute() {
@@ -451,6 +545,18 @@ function cleanCat(c) { return String(c).trim().replace(/,\s*$/, ''); }
 function wireEvents() {
   wireCollapsibles();
 
+  // CSV
+  const dropZone  = document.getElementById('csv-drop-zone');
+  const fileInput = document.getElementById('csv-file-input');
+  dropZone.addEventListener('click', () => fileInput.click());
+  dropZone.addEventListener('keydown', e => { if (e.key==='Enter'||e.key===' ') fileInput.click(); });
+  dropZone.addEventListener('dragover', e => { e.preventDefault(); dropZone.classList.add('dragover'); });
+  dropZone.addEventListener('dragleave', () => dropZone.classList.remove('dragover'));
+  dropZone.addEventListener('drop', e => { e.preventDefault(); dropZone.classList.remove('dragover'); if (e.dataTransfer.files[0]) readFile(e.dataTransfer.files[0]); });
+  fileInput.addEventListener('change', () => { if (fileInput.files[0]) readFile(fileInput.files[0]); });
+  document.getElementById('csv-url-load').addEventListener('click', () => loadFromUrl(document.getElementById('csv-url-input').value.trim()));
+  document.getElementById('share-btn').addEventListener('click', shareMap);
+
   // Filters
   document.getElementById('select-all-cats').addEventListener('click', () => {
     Object.keys(state.categories).forEach(c => state.categories[c].enabled = true);
@@ -571,5 +677,6 @@ window.addEventListener('DOMContentLoaded', () => {
   initMap();
   wireEvents();
   renderRoute();
-  loadHardcodedData();
+  updateShareBtn();
+  checkHashAutoLoad();
 });
