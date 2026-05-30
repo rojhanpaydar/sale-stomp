@@ -87,8 +87,31 @@ html, body { height: 100%; font-family: -apple-system, BlinkMacSystemFont, 'Sego
   color: #fff; border: none; border-radius: var(--radius); cursor: pointer;
   box-shadow: 0 4px 14px rgba(232, 93, 4, 0.35);
   transition: transform 0.15s, box-shadow 0.15s;
+  display: flex; align-items: center; justify-content: center;
 }
 .btn-start-route:hover { transform: translateY(-1px); box-shadow: 0 6px 18px rgba(232,93,4,0.45); }
+
+.btn-generate-route {
+  width: 100%; padding: 13px; font-size: 14px; font-weight: 800;
+  background: var(--accent); color: #fff;
+  border: none; border-radius: var(--radius); cursor: pointer;
+  box-shadow: 0 3px 10px rgba(232, 93, 4, 0.3);
+  transition: transform 0.15s, box-shadow 0.15s, background 0.15s;
+  display: flex; align-items: center; justify-content: center; gap: 8px;
+}
+.btn-generate-route:hover { background: var(--accent-hover); transform: translateY(-1px); box-shadow: 0 5px 14px rgba(232,93,4,0.4); }
+.btn-generate-route:active { transform: scale(0.98); }
+
+#app-footer {
+  padding: 14px 16px 16px;
+  font-size: 11px;
+  color: var(--text-muted);
+  text-align: center;
+  border-top: 1px solid var(--border);
+  margin-top: 4px;
+}
+#app-footer a { color: var(--accent); text-decoration: none; font-weight: 600; }
+#app-footer a:hover { text-decoration: underline; }
 
 /* ===== Sidebar sections ===== */
 #sidebar-logo {
@@ -309,38 +332,120 @@ html, body { height: 100%; font-family: -apple-system, BlinkMacSystemFont, 'Sego
 }
 @keyframes spin { to { transform: translateY(-50%) rotate(360deg); } }
 
+/* ===== Mobile tab bar ===== */
+#mobile-tabs { display: none; }
+
 /* ===== Mobile ===== */
 @media (max-width: 767px) {
-  #app { flex-direction: column; }
+  :root { --tab-bar-h: 64px; }
+
+  #app { flex-direction: column; position: relative; }
+
+  /* Slim header — logo only */
   #app-header {
     display: flex; align-items: center; justify-content: space-between;
     height: var(--header-h); padding: 0 16px;
     background: var(--surface); border-bottom: 1px solid var(--border);
-    z-index: 1000; flex-shrink: 0;
+    z-index: 1001; flex-shrink: 0;
   }
-  #app-header h1 { font-size: 16px; font-weight: 800; color: var(--accent); }
-  .header-right { display: flex; gap: 8px; }
-  .header-btn { background: none; border: none; font-size: 20px; cursor: pointer; padding: 4px; }
+  #app-header h1 { font-size: 17px; font-weight: 900; color: var(--accent); }
+  #mobile-pin-badge {
+    font-size: 12px; color: var(--text-muted);
+    background: var(--surface-2); border-radius: 20px;
+    padding: 4px 10px; border: 1px solid var(--border);
+  }
 
-  #map-container { flex: 1; position: relative; }
+  /* Map fills everything between header and tab bar */
+  #map-container {
+    position: fixed;
+    top: var(--header-h);
+    left: 0; right: 0;
+    bottom: var(--tab-bar-h);
+    z-index: 0;
+  }
+  #map-container.hidden-map { display: none; }
 
+  /* Sidebar = bottom sheet, sits above tab bar */
   #sidebar {
-    position: fixed; bottom: 0; left: 0; right: 0; top: auto;
-    width: 100% !important; height: 55vh;
-    border-right: none; border-top: 1px solid var(--border);
-    border-radius: 16px 16px 0 0; box-shadow: 0 -4px 20px rgba(0,0,0,0.15);
-    transform: translateY(100%); transition: transform 0.3s ease;
-    z-index: 999;
+    position: fixed;
+    bottom: var(--tab-bar-h);
+    left: 0; right: 0;
+    width: 100% !important;
+    height: 65vh;
+    background: var(--surface);
+    border-right: none;
+    border-top: 1px solid var(--border);
+    border-radius: 20px 20px 0 0;
+    box-shadow: 0 -6px 24px rgba(0,0,0,0.13);
+    transform: translateY(100%);
+    transition: transform 0.32s cubic-bezier(0.32, 0.72, 0, 1);
+    z-index: 1000;
+    overflow-y: auto;
+    -webkit-overflow-scrolling: touch;
   }
   #sidebar.open { transform: translateY(0); }
-  #sidebar.map-hidden { height: 100vh; border-radius: 0; top: var(--header-h); }
-  #sidebar-handle { display: block; width: 40px; height: 4px; background: var(--border); border-radius: 2px; margin: 10px auto 4px; flex-shrink: 0; }
+
+  /* Full-screen checklist mode */
+  #sidebar.map-hidden {
+    bottom: var(--tab-bar-h);
+    height: calc(100vh - var(--header-h) - var(--tab-bar-h));
+    border-radius: 0;
+    transform: translateY(0);
+  }
+
+  /* Drag handle */
+  #sidebar-handle {
+    display: block; width: 36px; height: 4px;
+    background: var(--border); border-radius: 2px;
+    margin: 12px auto 6px; flex-shrink: 0;
+  }
+
+  /* Desktop-only sidebar logo hidden on mobile */
+  #sidebar-logo { display: none; }
+
+  /* Map badge position */
   #map-badge { top: 8px; right: 8px; }
+
+  /* Bottom tab bar */
+  #mobile-tabs {
+    display: flex;
+    position: fixed;
+    bottom: 0; left: 0; right: 0;
+    height: var(--tab-bar-h);
+    background: var(--surface);
+    border-top: 1px solid var(--border);
+    z-index: 1002;
+    box-shadow: 0 -2px 12px rgba(0,0,0,0.08);
+  }
+
+  .tab-btn {
+    flex: 1; display: flex; flex-direction: column;
+    align-items: center; justify-content: center; gap: 3px;
+    background: none; border: none; cursor: pointer;
+    padding: 8px 4px; transition: background 0.15s;
+    -webkit-tap-highlight-color: transparent;
+  }
+  .tab-btn:active { background: var(--surface-2); }
+  .tab-btn.active .tab-icon { transform: scale(1.15); }
+  .tab-btn.active .tab-icon svg { stroke: var(--accent); }
+  .tab-btn.active .tab-label { color: var(--accent); font-weight: 700; }
+
+  .tab-icon { width: 24px; height: 24px; display: flex; align-items: center; justify-content: center; transition: transform 0.2s; }
+  .tab-icon svg { width: 22px; height: 22px; stroke: var(--text-muted); transition: stroke 0.15s; }
+  .tab-label { font-size: 10px; color: var(--text-muted); font-weight: 500; letter-spacing: 0.02em; }
+
+  /* Bigger touch targets for stop actions in checklist */
+  .cl-btn-visited, .cl-btn-skip { padding: 15px; font-size: 15px; }
+
+  /* Popup add button — bigger on mobile */
+  .popup-add-btn { padding: 11px; font-size: 15px; }
 }
 
 @media (min-width: 768px) {
-  #sidebar-handle, #hamburger, #app-header h1 { display: none; }
-  #sidebar-logo { display: block; }
+  #sidebar-handle { display: none; }
+  #mobile-tabs    { display: none; }
+  #app-header     { display: none; }
+  #sidebar-logo   { display: block; }
 }
 
 /* ===== Share section ===== */

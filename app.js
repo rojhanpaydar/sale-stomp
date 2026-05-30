@@ -229,6 +229,7 @@ function applyFilters() {
 function updateBadge() {
   const visible = state.markers.filter(m => state.map.hasLayer(m.marker)).length;
   document.getElementById('pin-count').textContent = visible;
+  updateMobileBadge();
 }
 
 // ── Route Builder ──────────────────────────────────────
@@ -251,7 +252,23 @@ function removeStop(id) {
 }
 
 function updateStartRouteCta() {
-  document.getElementById('start-route-section').style.display = state.route.length ? '' : 'none';
+  const hasStops = state.route.length > 0;
+  document.getElementById('start-route-section').style.display = hasStops ? '' : 'none';
+  document.getElementById('generate-route-wrap').style.display = hasStops ? '' : 'none';
+  // Show/hide the Checklist tab on mobile
+  const clTab = document.getElementById('tab-checklist-btn');
+  if (clTab) clTab.style.display = hasStops ? '' : 'none';
+}
+
+function generateRoute() {
+  const coords = state.route.filter(s => s.latlng).map(s => s.latlng);
+  if (!coords.length) { alert('Add at least one stop with a location to generate a route.'); return; }
+  if (coords.length > 1) {
+    state.map.fitBounds(L.latLngBounds(coords).pad(0.18));
+  } else {
+    state.map.setView(coords[0], 16);
+  }
+  if (isMobile) closeMobileSheet();
 }
 
 function renderRoute() {
@@ -374,7 +391,7 @@ function makeCustomCard(stop) {
   const div = document.createElement('div');
   div.className = 'cl-card-custom';
   div.innerHTML = `
-    <div class="cl-custom-icon">📍</div>
+    <div class="cl-custom-icon"><svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"/><circle cx="12" cy="10" r="3"/></svg></div>
     <div class="cl-custom-name">${esc(stop.label)}</div>
   `;
   return div;
@@ -397,8 +414,8 @@ function makeSaleCard(item, idx, num) {
       </div>
     </div>
     <div class="cl-stop-actions">
-      <button class="cl-btn-visited${visited ? ' active' : ''}">☑ Visited</button>
-      <button class="cl-btn-skip${skipped ? ' active' : ''}">⟫ Skip</button>
+      <button class="cl-btn-visited${visited ? ' active' : ''}"><svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg> Visited</button>
+      <button class="cl-btn-skip${skipped ? ' active' : ''}"><svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"/></svg> Skip</button>
     </div>
   `;
   card.querySelector('.cl-btn-visited').addEventListener('click', () => {
@@ -423,7 +440,8 @@ function toggleMapVisibility() {
   state.mapHidden = !state.mapHidden;
   document.getElementById('map-container').classList.toggle('hidden-map', state.mapHidden);
   document.getElementById('sidebar').classList.toggle('map-hidden', state.mapHidden);
-  document.getElementById('toggle-map-btn').textContent = state.mapHidden ? '🗺 Show Map' : '🗺 Hide Map';
+  const mapIconSvg = `<svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-1px;margin-right:4px"><polygon points="1 6 1 22 8 18 16 22 23 18 23 2 16 6 8 2 1 6"/><line x1="8" y1="2" x2="8" y2="18"/><line x1="16" y1="6" x2="16" y2="22"/></svg>`;
+  document.getElementById('toggle-map-btn').innerHTML = state.mapHidden ? mapIconSvg + 'Show Map' : mapIconSvg + 'Hide Map';
   if (!state.mapHidden) setTimeout(() => state.map.invalidateSize(), 310);
 }
 
@@ -520,6 +538,7 @@ function wireEvents() {
   document.getElementById('clear-route').addEventListener('click', () => {
     state.route = []; renderRoute(); drawRouteLine(); updateStartRouteCta();
   });
+  document.getElementById('generate-route-btn').addEventListener('click', generateRoute);
   document.getElementById('fit-route').addEventListener('click', () => {
     const coords = state.route.filter(s => s.latlng).map(s => s.latlng);
     if (!coords.length && state.markers.length) {
@@ -533,13 +552,81 @@ function wireEvents() {
   document.getElementById('share-btn').addEventListener('click', shareMap);
 
   // Checklist mode
-  document.getElementById('start-route-btn').addEventListener('click', enterRoutingMode);
+  document.getElementById('start-route-btn').addEventListener('click', () => {
+    enterRoutingMode();
+    if (isMobile) openMobileTab('checklist');
+  });
   document.getElementById('back-to-planning').addEventListener('click', exitRoutingMode);
   document.getElementById('toggle-map-btn').addEventListener('click', toggleMapVisibility);
 
-  // Mobile
-  document.getElementById('hamburger').addEventListener('click', () => document.getElementById('sidebar').classList.toggle('open'));
-  document.getElementById('map').addEventListener('click', () => { if (isMobile) document.getElementById('sidebar').classList.remove('open'); });
+  // Mobile tab bar
+  document.querySelectorAll('.tab-btn').forEach(btn => {
+    btn.addEventListener('click', () => openMobileTab(btn.dataset.tab));
+  });
+
+  // Close sheet when tapping map
+  document.getElementById('map').addEventListener('click', () => {
+    if (isMobile) closeMobileSheet();
+  });
+}
+
+// ── Mobile sheet helpers ───────────────────────────────
+let activeTab = null;
+
+function openMobileTab(tab) {
+  const sidebar = document.getElementById('sidebar');
+
+  if (activeTab === tab && sidebar.classList.contains('open')) {
+    // Tapping active tab again closes the sheet
+    closeMobileSheet();
+    return;
+  }
+
+  activeTab = tab;
+
+  // Set active tab highlight
+  document.querySelectorAll('.tab-btn').forEach(b => b.classList.toggle('active', b.dataset.tab === tab));
+
+  // Expand the matching section, collapse others (desktop sections auto-collapsed on mobile)
+  const sectionMap = { filter: 'filter-body', route: 'route-body', share: 'share-body' };
+
+  if (tab === 'checklist') {
+    // Switch to checklist panel
+    document.getElementById('planning-panel').classList.add('hidden');
+    document.getElementById('routing-panel').classList.remove('hidden');
+  } else {
+    if (state.mode === 'routing') {
+      // Switch back to planning panel
+      document.getElementById('routing-panel').classList.add('hidden');
+      document.getElementById('planning-panel').classList.remove('hidden');
+      state.mode = 'planning';
+    }
+    // Expand target section, collapse the rest
+    Object.entries(sectionMap).forEach(([key, bodyId]) => {
+      const body   = document.getElementById(bodyId);
+      const header = body?.previousElementSibling;
+      const isTarget = key === tab;
+      body?.classList.toggle('collapsed', !isTarget);
+      header?.classList.toggle('collapsed', !isTarget);
+    });
+  }
+
+  sidebar.classList.add('open');
+  // Scroll sheet to top so the right section is visible
+  setTimeout(() => { sidebar.scrollTop = 0; }, 50);
+}
+
+function closeMobileSheet() {
+  activeTab = null;
+  document.getElementById('sidebar').classList.remove('open');
+  document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+}
+
+function updateMobileBadge() {
+  const el = document.getElementById('mobile-pin-badge');
+  if (!el || !state.map) return;
+  const count = state.markers.filter(m => state.map.hasLayer(m.marker)).length;
+  el.textContent = count ? `${count} locations` : '';
 }
 
 function readFile(file) {
