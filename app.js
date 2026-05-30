@@ -528,8 +528,11 @@ function openMobileTab(tab) {
   const sectionMap = { filter: 'filter-body', route: 'route-body' };
 
   if (tab === 'checklist') {
-    document.getElementById('planning-panel').classList.add('hidden');
-    document.getElementById('routing-panel').classList.remove('hidden');
+    if (state.mode !== 'routing') enterRoutingMode();
+    else {
+      document.getElementById('planning-panel').classList.add('hidden');
+      document.getElementById('routing-panel').classList.remove('hidden');
+    }
   } else {
     if (state.mode === 'routing') {
       document.getElementById('routing-panel').classList.add('hidden');
