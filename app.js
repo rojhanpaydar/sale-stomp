@@ -1,5 +1,5 @@
 /* =====================================================
-   Sale Stomp — app.js  (Leaflet / OpenStreetMap)
+   Sale Stomp — app.js  (hardcoded data edition)
    ===================================================== */
 
 const isMobile = 'ontouchstart' in window;
@@ -10,21 +10,17 @@ let paletteIndex = 0;
 function nextColor() { return PALETTE[paletteIndex++ % PALETTE.length]; }
 
 // ── Category eligibility ───────────────────────────────
-// A raw item is a valid filter category if:
-//   1. It appears across 2+ rows in the dataset
-//   2. Its text is short enough to be a label (not a description)
 const CAT_MAX_LEN = 45;
 const CAT_MIN_ROWS = 2;
 
 function buildCategoryIndex(rows) {
-  const counts = {}; // item → row count
+  const counts = {};
   rows.forEach(row => {
     const seen = new Set();
     row.rawItems.forEach(item => {
       if (!seen.has(item)) { counts[item] = (counts[item] || 0) + 1; seen.add(item); }
     });
   });
-  // Return set of valid category names
   return new Set(
     Object.entries(counts)
       .filter(([item, count]) => count >= CAT_MIN_ROWS && item.length <= CAT_MAX_LEN)
@@ -35,15 +31,14 @@ function buildCategoryIndex(rows) {
 // ── State ──────────────────────────────────────────────
 const state = {
   rows: [],
-  markers: [],       // { row, marker }
+  markers: [],
   categories: {},
-  route: [],         // { id, label, type, stopType, latlng, row? }
+  route: [],
   routeLayer: null,
   map: null,
   mode: 'planning',
-  checklist: [],     // { stop, visited, skipped }
+  checklist: [],
   mapHidden: false,
-  csvUrl: null,      // set when loaded from a URL (enables sharing)
 };
 let stopIdCounter = 0;
 
@@ -57,9 +52,8 @@ function initMap() {
 }
 
 // ── Markers ────────────────────────────────────────────
-function makePinIcon(color, scale = 1) {
-  const w = Math.round(24 * scale), h = Math.round(36 * scale);
-  const svg = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 36" width="${w}" height="${h}">
+function makePinIcon(color) {
+  const svg = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 36" width="24" height="36">
     <path d="M12 0C5.373 0 0 5.373 0 12c0 9 12 24 12 24s12-15 12-24C24 5.373 18.627 0 12 0z"
           fill="${color}" stroke="#fff" stroke-width="1.5"/>
     <circle cx="12" cy="12" r="5" fill="#fff" opacity="0.9"/>
@@ -67,29 +61,14 @@ function makePinIcon(color, scale = 1) {
   return L.divIcon({
     className: 'sale-marker',
     html: svg,
-    iconSize: [w, h],
-    iconAnchor: [w / 2, h],
-    popupAnchor: [0, -h - 4],
+    iconSize: [24, 36],
+    iconAnchor: [12, 36],
+    popupAnchor: [0, -40],
   });
 }
 
-function clearAllMarkers() {
-  state.markers.forEach(({ marker }) => marker.remove());
-  state.markers = [];
-}
-
-async function placeMarkers() {
-  const toGeocode = state.rows.filter(r => r.lat === null);
-  for (let i = 0; i < toGeocode.length; i++) {
-    try {
-      const coords = await geocode(toGeocode[i].address);
-      if (coords) { toGeocode[i].lat = coords[0]; toGeocode[i].lng = coords[1]; }
-    } catch (_) {}
-    if (i < toGeocode.length - 1) await sleep(1100);
-  }
-
+function placeMarkers() {
   state.rows.forEach(row => {
-    if (row.lat === null) return;
     const primaryCat = row.categories[0] || 'Uncategorised';
     const color = state.categories[primaryCat]?.color || PALETTE[0];
     const marker = L.marker([row.lat, row.lng], { icon: makePinIcon(color) });
@@ -106,19 +85,16 @@ async function placeMarkers() {
 
   updateBadge();
 
-  if (state.markers.length) {
-    const group = L.featureGroup(state.markers.map(m => m.marker));
-    state.map.fitBounds(group.getBounds().pad(0.1));
-  }
+  const group = L.featureGroup(state.markers.map(m => m.marker));
+  state.map.fitBounds(group.getBounds().pad(0.1));
 }
 
 function buildPopup(row, marker) {
   const inRoute = state.route.some(s => s.type === 'sale' && s.row === row);
   const el = document.createElement('div');
   el.innerHTML = `
-    <div class="popup-name">${esc(row.name)}</div>
-    <div class="popup-address">${esc(row.address)}</div>
-    <div class="popup-cats">${(row.rawItems || row.categories).slice(0, 8).map(c => `<span class="popup-cat">${esc(cleanCat(c))}</span>`).join('')}</div>
+    <div class="popup-name">${esc(row.address)}</div>
+    <div class="popup-cats">${(row.rawItems).slice(0, 8).map(c => `<span class="popup-cat">${esc(cleanCat(c))}</span>`).join('')}</div>
     <button class="popup-add-btn${inRoute ? ' added' : ''}">${inRoute ? '✓ Added to Route' : '+ Add to Route'}</button>
   `;
   el.querySelector('.popup-add-btn').addEventListener('click', function () {
@@ -131,27 +107,21 @@ function buildPopup(row, marker) {
   return el;
 }
 
-// ── CSV loading ────────────────────────────────────────
-function loadCSV(csvText, sourceName) {
-  const result = Papa.parse(csvText.trim(), {
-    header: true,
-    skipEmptyLines: true,
-    transformHeader: h => h.trim().toLowerCase().replace(/[\s\n\r]+/g, '_'),
-  });
-  if (!result.data.length) { alert('Could not parse CSV. Check the file format.'); return; }
-
-  clearAllMarkers();
-  state.rows = [];
-  state.categories = {};
+// ── Load hardcoded data ────────────────────────────────
+function loadHardcodedData() {
   paletteIndex = 0;
 
-  // First pass — parse all rows (rawItems only)
-  const parsed = result.data.map(normaliseRow).filter(Boolean);
+  // Map SALE_DATA into rows with rawItems
+  const parsed = SALE_DATA.map(d => ({
+    address: d.address,
+    lat: d.lat,
+    lng: d.lng,
+    rawItems: d.items,
+    categories: [],
+  }));
 
-  // Build the valid category index from frequency + length
   const validCats = buildCategoryIndex(parsed);
 
-  // Second pass — assign filtered categories to each row
   parsed.forEach(row => {
     row.categories = [...new Set(row.rawItems.filter(i => validCats.has(i)))];
     if (!row.categories.length) row.categories = ['Other'];
@@ -161,39 +131,14 @@ function loadCSV(csvText, sourceName) {
     });
   });
 
+  // Populate event info
+  const titleEl = document.getElementById('event-title');
+  const metaEl  = document.getElementById('event-meta');
+  if (titleEl) titleEl.textContent = SALE_EVENT.name;
+  if (metaEl)  metaEl.textContent  = `${SALE_EVENT.date} · ${SALE_EVENT.location}`;
+
   renderCategoryFilters();
   placeMarkers();
-
-  const info = document.getElementById('loaded-info');
-  info.textContent = `✓ Loaded ${state.rows.length} locations from ${sourceName}`;
-  info.classList.add('visible');
-}
-
-function normaliseRow(raw) {
-  const keys = Object.keys(raw);
-  const fuzzyGet = (...terms) => {
-    for (const term of terms) {
-      if (raw[term] !== undefined && String(raw[term]).trim()) return String(raw[term]).trim();
-      const found = keys.find(k => k.includes(term.toLowerCase()));
-      if (found && raw[found] !== undefined && String(raw[found]).trim()) return String(raw[found]).trim();
-    }
-    return '';
-  };
-
-  const name    = fuzzyGet('name', 'title', 'seller', 'location_name');
-  const address = fuzzyGet('address', 'location', 'street', 'addr');
-  const latStr  = fuzzyGet('lat', 'latitude');
-  const lngStr  = fuzzyGet('lng', 'lon', 'longitude');
-  const catRaw  = fuzzyGet('categories', 'category', 'items', 'tags', 'selling', 'type');
-
-  if (!address && !name) return null;
-
-  const lat = parseFloat(latStr);
-  const lng = parseFloat(lngStr);
-  const rawItems = catRaw ? catRaw.split(/[|,;]/).map(c => c.trim()).filter(Boolean) : [];
-
-  // categories and rawCategories will be filled after the full frequency pass
-  return { name: name || address, address: address || name, lat: isNaN(lat) ? null : lat, lng: isNaN(lng) ? null : lng, rawItems, categories: [], rawCategories: rawItems };
 }
 
 // ── Filters ────────────────────────────────────────────
@@ -241,7 +186,7 @@ function addStop(stop) {
 }
 
 function addSaleStop(row) {
-  addStop({ label: row.name, type: 'sale', stopType: 'stop-sale', row, latlng: [row.lat, row.lng] });
+  addStop({ label: row.address, type: 'sale', stopType: 'stop-sale', row, latlng: [row.lat, row.lng] });
 }
 
 function removeStop(id) {
@@ -255,14 +200,13 @@ function updateStartRouteCta() {
   const hasStops = state.route.length > 0;
   document.getElementById('start-route-section').style.display = hasStops ? '' : 'none';
   document.getElementById('generate-route-wrap').style.display = hasStops ? '' : 'none';
-  // Show/hide the Checklist tab on mobile
   const clTab = document.getElementById('tab-checklist-btn');
   if (clTab) clTab.style.display = hasStops ? '' : 'none';
 }
 
 function generateRoute() {
   const coords = state.route.filter(s => s.latlng).map(s => s.latlng);
-  if (!coords.length) { alert('Add at least one stop with a location to generate a route.'); return; }
+  if (!coords.length) { alert('Add at least one stop to generate a route.'); return; }
   if (coords.length > 1) {
     state.map.fitBounds(L.latLngBounds(coords).pad(0.18));
   } else {
@@ -400,7 +344,7 @@ function makeCustomCard(stop) {
 function makeSaleCard(item, idx, num) {
   const { stop, visited, skipped } = item;
   const cats = stop.row
-    ? (stop.row.rawItems || stop.row.categories).slice(0, 6).map(cleanCat).join(' · ')
+    ? (stop.row.rawItems).slice(0, 6).map(cleanCat).join(' · ')
     : '';
   const card = document.createElement('div');
   card.className = `cl-card${visited ? ' visited' : ''}${skipped ? ' skipped' : ''}`;
@@ -419,17 +363,17 @@ function makeSaleCard(item, idx, num) {
     </div>
   `;
   card.querySelector('.cl-btn-visited').addEventListener('click', () => {
-    const item = state.checklist[idx];
-    item.visited = !item.visited;
-    if (item.visited) item.skipped = false;
-    if (item.stop.latlng && !state.mapHidden) state.map.panTo(item.stop.latlng);
+    const it = state.checklist[idx];
+    it.visited = !it.visited;
+    if (it.visited) it.skipped = false;
+    if (it.stop.latlng && !state.mapHidden) state.map.panTo(it.stop.latlng);
     renderChecklistHeader();
     renderChecklistList();
   });
   card.querySelector('.cl-btn-skip').addEventListener('click', () => {
-    const item = state.checklist[idx];
-    item.skipped = !item.skipped;
-    if (item.skipped) item.visited = false;
+    const it = state.checklist[idx];
+    it.skipped = !it.skipped;
+    if (it.skipped) it.visited = false;
     renderChecklistHeader();
     renderChecklistList();
   });
@@ -445,7 +389,7 @@ function toggleMapVisibility() {
   if (!state.mapHidden) setTimeout(() => state.map.invalidateSize(), 310);
 }
 
-// ── Geocoding (Nominatim — free, no key) ──────────────
+// ── Geocoding (for Start/End address input only) ───────
 async function geocode(address) {
   const url = `https://nominatim.openstreetmap.org/search?format=json&limit=1&q=${encodeURIComponent(address)}`;
   const res = await fetch(url, { headers: { 'Accept-Language': 'en' } });
@@ -489,24 +433,11 @@ function wireCollapsibles() {
 function esc(str) {
   return String(str ?? '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
 }
-function sleep(ms) { return new Promise(r => setTimeout(r, ms)); }
 function cleanCat(c) { return String(c).trim().replace(/,\s*$/, ''); }
 
 // ── Wire all events ────────────────────────────────────
 function wireEvents() {
   wireCollapsibles();
-
-  // CSV
-  const dropZone  = document.getElementById('csv-drop-zone');
-  const fileInput = document.getElementById('csv-file-input');
-  dropZone.addEventListener('click', () => fileInput.click());
-  dropZone.addEventListener('keydown', e => { if (e.key==='Enter'||e.key===' ') fileInput.click(); });
-  dropZone.addEventListener('dragover', e => { e.preventDefault(); dropZone.classList.add('dragover'); });
-  dropZone.addEventListener('dragleave', () => dropZone.classList.remove('dragover'));
-  dropZone.addEventListener('drop', e => { e.preventDefault(); dropZone.classList.remove('dragover'); if (e.dataTransfer.files[0]) readFile(e.dataTransfer.files[0]); });
-  fileInput.addEventListener('change', () => { if (fileInput.files[0]) readFile(fileInput.files[0]); });
-
-  document.getElementById('csv-url-load').addEventListener('click', () => loadFromUrl(document.getElementById('csv-url-input').value.trim()));
 
   // Filters
   document.getElementById('select-all-cats').addEventListener('click', () => {
@@ -523,9 +454,9 @@ function wireEvents() {
   const endInput    = document.getElementById('end-input');
   const customInput = document.getElementById('custom-stop-input');
   document.getElementById('set-start').addEventListener('click', () => geocodeAndAdd(startInput, 'start', 'stop-start'));
-  document.getElementById('set-end').addEventListener('click', () => geocodeAndAdd(endInput, 'end', 'stop-end'));
-  startInput.addEventListener('keydown', e => { if (e.key==='Enter') document.getElementById('set-start').click(); });
-  endInput.addEventListener('keydown', e => { if (e.key==='Enter') document.getElementById('set-end').click(); });
+  document.getElementById('set-end').addEventListener('click',   () => geocodeAndAdd(endInput,   'end',   'stop-end'));
+  startInput.addEventListener('keydown', e => { if (e.key === 'Enter') document.getElementById('set-start').click(); });
+  endInput.addEventListener('keydown',   e => { if (e.key === 'Enter') document.getElementById('set-end').click(); });
 
   document.getElementById('add-custom-stop').addEventListener('click', () => {
     const val = customInput.value.trim();
@@ -533,12 +464,11 @@ function wireEvents() {
     addStop({ label: val, type: 'custom', stopType: 'stop-custom', latlng: null });
     customInput.value = '';
   });
-  customInput.addEventListener('keydown', e => { if (e.key==='Enter') document.getElementById('add-custom-stop').click(); });
+  customInput.addEventListener('keydown', e => { if (e.key === 'Enter') document.getElementById('add-custom-stop').click(); });
 
   document.getElementById('clear-route').addEventListener('click', () => {
     state.route = []; renderRoute(); drawRouteLine(); updateStartRouteCta();
   });
-  document.getElementById('generate-route-btn').addEventListener('click', generateRoute);
   document.getElementById('fit-route').addEventListener('click', () => {
     const coords = state.route.filter(s => s.latlng).map(s => s.latlng);
     if (!coords.length && state.markers.length) {
@@ -547,9 +477,7 @@ function wireEvents() {
       state.map.fitBounds(L.latLngBounds(coords).pad(0.15));
     }
   });
-
-  // Share
-  document.getElementById('share-btn').addEventListener('click', shareMap);
+  document.getElementById('generate-route-btn').addEventListener('click', generateRoute);
 
   // Checklist mode
   document.getElementById('start-route-btn').addEventListener('click', () => {
@@ -577,31 +505,24 @@ function openMobileTab(tab) {
   const sidebar = document.getElementById('sidebar');
 
   if (activeTab === tab && sidebar.classList.contains('open')) {
-    // Tapping active tab again closes the sheet
     closeMobileSheet();
     return;
   }
 
   activeTab = tab;
-
-  // Set active tab highlight
   document.querySelectorAll('.tab-btn').forEach(b => b.classList.toggle('active', b.dataset.tab === tab));
 
-  // Expand the matching section, collapse others (desktop sections auto-collapsed on mobile)
-  const sectionMap = { filter: 'filter-body', route: 'route-body', share: 'share-body' };
+  const sectionMap = { filter: 'filter-body', route: 'route-body' };
 
   if (tab === 'checklist') {
-    // Switch to checklist panel
     document.getElementById('planning-panel').classList.add('hidden');
     document.getElementById('routing-panel').classList.remove('hidden');
   } else {
     if (state.mode === 'routing') {
-      // Switch back to planning panel
       document.getElementById('routing-panel').classList.add('hidden');
       document.getElementById('planning-panel').classList.remove('hidden');
       state.mode = 'planning';
     }
-    // Expand target section, collapse the rest
     Object.entries(sectionMap).forEach(([key, bodyId]) => {
       const body   = document.getElementById(bodyId);
       const header = body?.previousElementSibling;
@@ -612,7 +533,6 @@ function openMobileTab(tab) {
   }
 
   sidebar.classList.add('open');
-  // Scroll sheet to top so the right section is visible
   setTimeout(() => { sidebar.scrollTop = 0; }, 50);
 }
 
@@ -629,68 +549,10 @@ function updateMobileBadge() {
   el.textContent = count ? `${count} locations` : '';
 }
 
-function readFile(file) {
-  state.csvUrl = null; // file upload — not shareable
-  updateShareBtn();
-  const reader = new FileReader();
-  reader.onload = e => loadCSV(e.target.result, file.name);
-  reader.readAsText(file);
-}
-
-async function loadFromUrl(url) {
-  if (!url) return;
-  try {
-    const res = await fetch(url);
-    if (!res.ok) throw new Error(res.statusText);
-    state.csvUrl = url;
-    loadCSV(await res.text(), url.split('/').pop() || url);
-    updateShareBtn();
-  } catch (e) { alert(`Could not load CSV: ${e.message}`); }
-}
-
-// ── Share ──────────────────────────────────────────────
-function updateShareBtn() {
-  const btn = document.getElementById('share-btn');
-  const tip = document.getElementById('share-tip');
-  if (state.csvUrl) {
-    btn.disabled = false;
-    btn.title = '';
-    tip.classList.add('hidden');
-  } else {
-    btn.disabled = true;
-    btn.title = 'Load the CSV from a URL first to enable sharing';
-  }
-}
-
-function shareMap() {
-  const shareUrl = `${location.origin}${location.pathname}#csv=${encodeURIComponent(state.csvUrl)}`;
-  navigator.clipboard.writeText(shareUrl).then(() => {
-    const btn = document.getElementById('share-btn');
-    const orig = btn.textContent;
-    btn.textContent = '✓ Copied!';
-    setTimeout(() => { btn.textContent = orig; }, 2200);
-  }).catch(() => {
-    // fallback: show the URL in a prompt so they can copy manually
-    window.prompt('Copy this link to share your map:', shareUrl);
-  });
-}
-
-// ── Hash-based auto-load ───────────────────────────────
-function checkHashAutoLoad() {
-  const hash = location.hash.slice(1); // remove leading #
-  const params = new URLSearchParams(hash);
-  const csvUrl = params.get('csv');
-  if (csvUrl) {
-    document.getElementById('csv-url-input').value = csvUrl;
-    loadFromUrl(csvUrl);
-  }
-}
-
 // ── Boot ───────────────────────────────────────────────
 window.addEventListener('DOMContentLoaded', () => {
   initMap();
   wireEvents();
   renderRoute();
-  updateShareBtn();
-  checkHashAutoLoad();
+  loadHardcodedData();
 });
