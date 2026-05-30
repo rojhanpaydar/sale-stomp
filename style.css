@@ -35,6 +35,7 @@ html, body { height: 100%; font-family: -apple-system, BlinkMacSystemFont, 'Sego
   overflow-y: auto;
   z-index: 10;
   transition: width 0.3s ease;
+  min-height: 0;
 }
 
 #sidebar.map-hidden { width: 100%; border-right: none; }
@@ -210,7 +211,7 @@ html, body { height: 100%; font-family: -apple-system, BlinkMacSystemFont, 'Sego
 .stop-custom { background: #7c3aed; }
 
 /* ===== Checklist Panel ===== */
-#routing-panel { display: flex; flex-direction: column; height: 100%; }
+#routing-panel { display: flex; flex-direction: column; flex: 1 1 auto; min-height: 0; }
 #routing-panel.hidden { display: none; }
 
 #checklist-header {
@@ -249,7 +250,7 @@ html, body { height: 100%; font-family: -apple-system, BlinkMacSystemFont, 'Sego
 .dot-gray  { background: rgba(255,255,255,0.4); }
 .dot-red   { background: #fca5a5; }
 
-#checklist-list { flex: 1; overflow-y: auto; padding: 10px 12px; display: flex; flex-direction: column; gap: 8px; }
+#checklist-list { flex: 1 1 auto; min-height: 0; overflow-y: auto; padding: 10px 12px; display: flex; flex-direction: column; gap: 8px; }
 
 /* ===== Checklist Cards ===== */
 .cl-card {
