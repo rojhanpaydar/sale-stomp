@@ -9,6 +9,36 @@ const PALETTE = ['#e85d04','#1a73e8','#2d9e2d','#7c3aed','#d97706','#0891b2','#b
 let paletteIndex = 0;
 function nextColor() { return PALETTE[paletteIndex++ % PALETTE.length]; }
 
+// ── Category normalisation map ─────────────────────────
+// Maps any raw CSV item → a display group name.
+// Matching is case-insensitive substring. First match wins.
+const CAT_RULES = [
+  { match: ['clothing', 'costume', 'apparel', 'outfit', 'wear', 'jacket', 'shirt', 'dress', 'pants', 'shoes', 'boot', 'sock', 'hat', 'scarf', 'glove', 'makeup', 'y2k'], group: 'Clothing & Accessories' },
+  { match: ['jewelry', 'jewellery', 'accessori', 'bag', 'purse', 'watch'], group: 'Clothing & Accessories' },
+  { match: ['toy', 'game', 'puzzle', 'lego', 'doll', 'action figure', 'balloon'], group: 'Toys & Games' },
+  { match: ['book', 'magazine', 'comic'], group: 'Books & Media' },
+  { match: ['record', 'cd', 'tape', 'vinyl', 'dvd', 'video game', 'board game'], group: 'Books & Media' },
+  { match: ['electronic', 'computer', 'phone', 'tablet', 'camera', 'tv ', 'television', 'speaker', 'headphone', 'appliance', 'soda stream', 'mixmaster'], group: 'Electronics & Appliances' },
+  { match: ['tool', 'hardware', 'drill', 'saw', 'wrench'], group: 'Tools & Hardware' },
+  { match: ['sport', 'bike', 'bicycle', 'ski', 'skate', 'hockey', 'outdoor play', 'scooter', 'stroller', 'tires', 'rim', 'peloton'], group: 'Sports & Outdoor' },
+  { match: ['baby', 'infant', 'toddler', 'kid', 'children', 'crib', 'bassinet', 'car seat', 'nursing', 'playpen', 'lomi'], group: 'Baby & Kids' },
+  { match: ['kitchen', 'dish', 'glass', 'mug', 'plate', 'bowl', 'pot', 'pan', 'cutlery', 'silverware', 'crockery', 'cookware', 'crock pot'], group: 'Kitchen & Dining' },
+  { match: ['furniture', 'chair', 'table', 'sofa', 'couch', 'desk', 'shelf', 'shelv', 'bed', 'dresser', 'cabinet', 'piano', 'chandelier'], group: 'Furniture & Home' },
+  { match: ['mirror', 'art ', 'artwork', 'print', 'paint', 'decor', 'decoration', 'candle', 'lamp', 'light', 'rug', 'curtain', 'vase', 'ceramic', 'pottery'], group: 'Art & Décor' },
+  { match: ['food', 'drink', 'bake', 'cookie', 'bread', 'cake', 'lemonade', 'freezie', 'cornbread', 'chocolate'], group: 'Food & Drinks' },
+  { match: ['plant', 'garden', 'garden', 'seed', 'pot '], group: 'Garden & Plants' },
+  { match: ['craft', 'fabric', 'sewing', 'knit', 'yarn', 'art supply', 'scrapbook', 'junk journal'], group: 'Crafts & Supplies' },
+  { match: ['live music', 'music'], group: 'Other' },
+];
+
+function normaliseCategory(raw) {
+  const lower = raw.toLowerCase();
+  for (const { match, group } of CAT_RULES) {
+    if (match.some(m => lower.includes(m))) return group;
+  }
+  return 'Other';
+}
+
 // ── State ──────────────────────────────────────────────
 const state = {
   rows: [],
@@ -95,7 +125,7 @@ function buildPopup(row, marker) {
   el.innerHTML = `
     <div class="popup-name">${esc(row.name)}</div>
     <div class="popup-address">${esc(row.address)}</div>
-    <div class="popup-cats">${row.categories.slice(0, 8).map(c => `<span class="popup-cat">${esc(cleanCat(c))}</span>`).join('')}</div>
+    <div class="popup-cats">${(row.rawCategories || row.categories).slice(0, 8).map(c => `<span class="popup-cat">${esc(cleanCat(c))}</span>`).join('')}</div>
     <button class="popup-add-btn${inRoute ? ' added' : ''}">${inRoute ? '✓ Added to Route' : '+ Add to Route'}</button>
   `;
   el.querySelector('.popup-add-btn').addEventListener('click', function () {
@@ -160,11 +190,16 @@ function normaliseRow(raw) {
 
   const lat = parseFloat(latStr);
   const lng = parseFloat(lngStr);
-  const categories = catRaw
-    ? catRaw.split(/[|,;]/).map(c => c.trim()).filter(Boolean)
-    : ['Uncategorised'];
+  // Parse raw items then map each to a normalised group; deduplicate
+  const rawItems = catRaw ? catRaw.split(/[|,;]/).map(c => c.trim()).filter(Boolean) : [];
+  const categories = rawItems.length
+    ? [...new Set(rawItems.map(normaliseCategory))]
+    : ['Other'];
 
-  return { name: name || address, address: address || name, lat: isNaN(lat) ? null : lat, lng: isNaN(lng) ? null : lng, categories };
+  // Keep original items for popup display (before grouping)
+  const rawCategories = rawItems.length ? rawItems : ['Other'];
+
+  return { name: name || address, address: address || name, lat: isNaN(lat) ? null : lat, lng: isNaN(lng) ? null : lng, categories, rawCategories };
 }
 
 // ── Filters ────────────────────────────────────────────
@@ -354,7 +389,7 @@ function makeCustomCard(stop) {
 function makeSaleCard(item, idx, num) {
   const { stop, visited, skipped } = item;
   const cats = stop.row
-    ? stop.row.categories.slice(0, 6).map(cleanCat).join(' · ')
+    ? (stop.row.rawCategories || stop.row.categories).slice(0, 6).map(cleanCat).join(' · ')
     : '';
   const card = document.createElement('div');
   card.className = `cl-card${visited ? ' visited' : ''}${skipped ? ' skipped' : ''}`;
