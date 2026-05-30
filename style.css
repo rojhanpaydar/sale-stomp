@@ -49,30 +49,14 @@ html, body { height: 100%; font-family: -apple-system, BlinkMacSystemFont, 'Sego
 
 #map { width: 100%; height: 100%; }
 
-/* ===== API Key Modal ===== */
-.modal-overlay {
-  position: fixed; inset: 0; background: rgba(0,0,0,0.55);
-  display: flex; align-items: center; justify-content: center;
-  z-index: 9999; backdrop-filter: blur(3px);
-}
-.modal-overlay.hidden { display: none; }
+/* ===== Leaflet popup tweaks ===== */
+.leaflet-popup-content-wrapper { border-radius: var(--radius); box-shadow: var(--shadow); }
+.leaflet-popup-content { margin: 12px 14px; min-width: 190px; }
 
-.modal-box {
-  background: var(--surface); border-radius: 16px; padding: 32px;
-  max-width: 440px; width: 90%; box-shadow: 0 20px 60px rgba(0,0,0,0.3);
-  text-align: center;
+/* ===== Pin hover animation (desktop only) ===== */
+@media (hover: hover) {
+  .sale-marker { transition: transform 0.18s ease; transform-origin: bottom center; }
 }
-.modal-icon { font-size: 40px; margin-bottom: 12px; }
-.modal-box h2 { font-size: 20px; font-weight: 800; margin-bottom: 10px; }
-.modal-box p { color: var(--text-muted); font-size: 13px; line-height: 1.6; margin-bottom: 10px; }
-.modal-hint { background: var(--surface-2); border-radius: var(--radius); padding: 10px 12px; font-size: 12px !important; }
-.api-key-error { background: #fee; border: 1px solid #fca; color: #c00; border-radius: var(--radius); padding: 8px 12px; margin-bottom: 10px; font-size: 12px; text-align: left; }
-.modal-box input {
-  width: 100%; padding: 10px 14px; border: 2px solid var(--border); border-radius: var(--radius);
-  font-size: 14px; margin: 14px 0 18px; outline: none; font-family: monospace;
-}
-.modal-box input:focus { border-color: var(--accent); }
-.modal-actions { display: flex; gap: 8px; justify-content: center; }
 
 /* ===== Mobile header ===== */
 #app-header { display: none; }

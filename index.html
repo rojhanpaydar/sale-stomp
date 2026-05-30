@@ -4,6 +4,8 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Sale Stomp — Interactive Route Planner</title>
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
   <script src="https://unpkg.com/papaparse@5.4.1/papaparse.min.js"></script>
   <script src="https://unpkg.com/sortablejs@1.15.2/Sortable.min.js"></script>
   <link rel="stylesheet" href="style.css" />
@@ -11,26 +13,10 @@
 <body>
 <div id="app">
 
-  <!-- API Key Modal -->
-  <div id="api-key-modal" class="modal-overlay">
-    <div class="modal-box">
-      <div class="modal-icon">🗺️</div>
-      <h2>Connect Google Maps</h2>
-      <p>Sale Stomp uses the Google Maps JavaScript API. Paste your API key below to get started.</p>
-      <p class="modal-hint">Get a free key at <strong>console.cloud.google.com</strong> → Enable "Maps JavaScript API" → Credentials → Create API Key</p>
-      <div id="api-key-error" class="api-key-error hidden"></div>
-      <input type="text" id="api-key-input" placeholder="AIzaSy..." autocomplete="off" />
-      <div class="modal-actions">
-        <button class="btn btn-primary" id="api-key-save">Load Map →</button>
-      </div>
-    </div>
-  </div>
-
   <!-- Mobile header -->
   <header id="app-header">
     <h1>👟 Sale Stomp</h1>
     <div class="header-right">
-      <button id="map-toggle-mobile" class="header-btn hidden">🗺</button>
       <button id="hamburger" class="header-btn">☰</button>
     </div>
   </header>
@@ -116,7 +102,7 @@
 
       <!-- Start Route CTA -->
       <div class="sidebar-section" id="start-route-section" style="display:none">
-        <button class="btn btn-start-route" id="start-route-btn">📋 Start Route Checklist</button>
+        <button class="btn-start-route" id="start-route-btn">📋 Start Route Checklist</button>
       </div>
     </div>
 
